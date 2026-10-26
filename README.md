@@ -13,3 +13,5 @@ python3 -m venv .venv
 ```
 
 Open http://127.0.0.1:8000
+
+Public page: https://pk1codes.github.io/optionschain/
