@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Options ladder</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header>
+    <div class="title-row">
+      <h1>Options ladder</h1>
+      <p id="delay">Loading the chain…</p>
+    </div>
+    <div class="controls">
+      <div class="symbols" role="tablist" aria-label="Underlying">
+        <button type="button" data-symbol="NIFTY" aria-selected="true">NIFTY 50</button>
+        <button type="button" data-symbol="SPX" aria-selected="false">SPX</button>
+        <button type="button" data-symbol="XSP" aria-selected="false">XSP</button>
+      </div>
+      <div class="actions">
+        <button type="button" id="center">Center ATM</button>
+        <button type="button" id="refresh">Refresh</button>
+        <label class="auto"><input id="auto" type="checkbox" checked /> Auto</label>
+      </div>
+    </div>
+    <p id="spot" class="spot"> </p>
+    <p id="banner" class="banner" hidden></p>
+  </header>
+  <main>
+    <table>
+      <thead>
+        <tr>
+          <th>Strike</th>
+          <th>Expiry</th>
+          <th>DTE</th>
+          <th class="call">Call LTP</th>
+          <th class="call">Call OI</th>
+          <th class="put">Put LTP</th>
+          <th class="put">Put OI</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <p id="note" class="note" hidden></p>
+  </main>
+  <script src="/static/app.js"></script>
+</body>
+</html>
