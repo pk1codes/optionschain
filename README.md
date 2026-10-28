@@ -15,3 +15,5 @@ python3 -m venv .venv
 Open http://127.0.0.1:8000
 
 Public page: https://pk1codes.github.io/optionschain/
+
+The page reads the live API at https://optionschain-69334014512.asia-south1.run.app and falls back to the saved snapshots in `docs/data` if that API is down. NIFTY refreshes every 3 minutes. SPX and XSP refresh every minute.

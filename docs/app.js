@@ -15,6 +15,8 @@ let callSide = "short";
 let putSide = "short";
 let quoteName = "";
 let quoteCurrency = "USD";
+let freshness = { note: "", updated: "", nextAt: 0, live: false };
+const LADDER_API = "https://optionschain-69334014512.asia-south1.run.app";
 
 function fmtDate(iso) {
   const [year, month, day] = iso.split("-").map(Number);
@@ -95,7 +97,7 @@ function render(data) {
     + data.puts.map((row) => dataRow("put", row)).join("");
   const money = data.currency === "INR" ? "₹" : "$";
   spotEl.textContent = `${data.name}  ${money}${fmtPx(data.spot)} spot  ·  ${data.asOf}  ·  strike step ${fmtStrike(data.strikeStep)}  ·  ${data.expiryRule}`;
-  delayEl.textContent = data.delayNote;
+  setFreshness(data);
   const bits = [];
   if (data.stale) bits.push("Showing the last good chain.");
   if (data.error) bits.push(data.error);
@@ -156,16 +158,84 @@ function showPayoff() {
   });
 }
 
-async function load({ center }) {
+function fmtUpdated(iso) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleString(undefined, {
+    day: "numeric",
+    month: "short",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function paintFreshness() {
+  if (!freshness.note && !freshness.updated) return;
+  if (!freshness.live) {
+    delayEl.textContent = freshness.updated
+      ? `${freshness.note} · last updated ${freshness.updated}`
+      : freshness.note;
+    return;
+  }
+  const remain = Math.max(0, freshness.nextAt - Date.now());
+  const totalSeconds = Math.ceil(remain / 1000);
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = String(totalSeconds % 60).padStart(2, "0");
+  delayEl.textContent = `${freshness.note} · last updated ${freshness.updated} · next update in ${mins}m ${secs}s`;
+}
+
+function setFreshness(data) {
+  freshness.note = data.delayNote || "";
+  if (data.fetchedAt && data.refreshSeconds) {
+    freshness.live = true;
+    freshness.updated = fmtUpdated(data.fetchedAt);
+    freshness.nextAt = Date.parse(data.fetchedAt) + data.refreshSeconds * 1000;
+  } else {
+    freshness.live = false;
+    freshness.updated = data.asOf || "";
+    freshness.nextAt = 0;
+  }
+  paintFreshness();
+  scheduleRefresh();
+}
+
+function scheduleRefresh() {
+  clearTimeout(timer);
+  if (!autoEl.checked || !freshness.live) return;
+  const wait = freshness.nextAt - Date.now();
+  timer = setTimeout(() => load({ center: false, quiet: true }), Math.max(wait + 1000, 15000));
+}
+
+async function loadLive(current) {
+  const response = await fetch(`${LADDER_API}/api/ladder?symbol=${current}`, { cache: "no-store" });
+  if (!response.ok) throw new Error("Live ladder did not respond");
+  return response.json();
+}
+
+async function load({ center, quiet }) {
   const my = ++requestId;
   const current = symbol;
-  delayEl.textContent = `Loading ${current}…`;
+  if (!quiet) delayEl.textContent = `Loading ${current}…`;
   const scrollY = window.scrollY;
   try {
-    const response = await fetch(`data/${current}.json`, { cache: "no-store" });
+    let payload = null;
+    let liveError = "";
+    try {
+      payload = await loadLive(current);
+    } catch (error) {
+      liveError = error.message || "Live ladder did not respond";
+    }
+    if (!payload) {
+      const response = await fetch(`data/${current}.json`, { cache: "no-store" });
+      if (!response.ok) throw new Error(liveError || "Could not load the chain");
+      payload = await response.json();
+      payload.fetchedAt = null;
+      payload.refreshSeconds = null;
+      payload.stale = true;
+      payload.error = liveError;
+    }
     if (my !== requestId) return;
-    if (!response.ok) throw new Error("Could not load the chain");
-    const payload = await response.json();
     render(payload);
     if (center) centerAtm();
     else window.scrollTo(0, scrollY);
@@ -173,14 +243,19 @@ async function load({ center }) {
     if (my !== requestId) return;
     bannerEl.hidden = false;
     bannerEl.textContent = error.message || "Could not load the chain";
-    delayEl.textContent = "Load failed";
+    if (!quiet) delayEl.textContent = "Load failed";
+    scheduleRefresh();
   }
 }
 
 function armTimer() {
-  clearInterval(timer);
-  if (!autoEl.checked) return;
-  timer = setInterval(() => load({ center: false }), 30000);
+  if (!autoEl.checked) {
+    clearTimeout(timer);
+    freshness.live = false;
+    paintFreshness();
+    return;
+  }
+  load({ center: false, quiet: true });
 }
 
 document.querySelectorAll(".symbols button").forEach((button) => {
@@ -232,5 +307,5 @@ payoffHandlers.onClear = () => {
   showPayoff();
 };
 
-armTimer();
+setInterval(paintFreshness, 1000);
 load({ center: true });

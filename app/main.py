@@ -1,9 +1,11 @@
 import asyncio
 import logging
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -21,6 +23,16 @@ _last_good: dict[str, dict] = {}
 _locks: dict[str, asyncio.Lock] = {}
 
 app = FastAPI(title="Options ladder")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://pk1codes.github.io",
+        "http://127.0.0.1:8000",
+        "http://localhost:8000",
+    ],
+    allow_methods=["GET"],
+    allow_headers=["*"],
+)
 app.mount("/static", StaticFiles(directory=_STATIC), name="static")
 
 
@@ -40,6 +52,8 @@ async def load_ladder(symbol: str) -> dict:
             payload = build_ladder(await _fetch(symbol))
             payload["stale"] = False
             payload["error"] = None
+            payload["fetchedAt"] = datetime.now(timezone.utc).isoformat()
+            payload["refreshSeconds"] = _TTL[symbol]
             _cache[symbol] = (time.monotonic(), payload)
             _last_good[symbol] = payload
             return payload
