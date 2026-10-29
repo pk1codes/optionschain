@@ -3,6 +3,7 @@ from datetime import date
 from app.ladder import build_ladder, detect_step_millis, select_expiries, to_millis
 from app.models import Quote, Snapshot
 from app.providers.cboe import index_options, parse_option_symbol
+from app.providers.cme import index_chain, listed_contracts, parse_px, quote_from_side
 from app.providers.nse import rows_to_quotes
 
 
@@ -108,6 +109,33 @@ def test_spxw_beats_standard_spx_on_the_same_contract():
     assert quotes[(date(2026, 10, 27), 7675000, "P")].oi == 8
     assert strikes == [7675000, 7680000]
     assert expiries == [date(2026, 10, 27)]
+
+
+def test_es_chain_keeps_a_last_price_and_skips_past_expiries():
+    assert parse_px("-") is None
+    assert parse_px("22.00") == 22
+    assert quote_from_side({"last": "-", "priorSettle": "8.60"}).ltp == 8.6
+    groups = [{
+        "contractExpirations": [
+            {"lastTradeDate": "2026-10-28T00:00:00", "productId": 1, "expirationYear": 2026, "expirationMonth": 10},
+            {"lastTradeDate": "2026-10-29T00:00:00", "productId": 10141, "expirationYear": 2026, "expirationMonth": 10},
+            {"lastTradeDate": "2026-10-30T00:00:00", "productId": 136, "expirationYear": 2026, "expirationMonth": 10},
+        ]
+    }]
+    kept = listed_contracts(groups, date(2026, 10, 29))
+    assert [item["expiry"] for item in kept] == [date(2026, 10, 29), date(2026, 10, 30)]
+    quotes = {}
+    strikes = set()
+    index_chain({
+        "strikePrices": [{
+            "strikePrice": "7755.0",
+            "call": {"last": "19.20", "priorSettle": "43.25"},
+            "put": {"last": "-", "priorSettle": "15.10"},
+        }]
+    }, date(2026, 10, 29), quotes, strikes)
+    assert quotes[(date(2026, 10, 29), to_millis(7755), "C")].ltp == 19.2
+    assert quotes[(date(2026, 10, 29), to_millis(7755), "P")].ltp == 15.1
+    assert quotes[(date(2026, 10, 29), to_millis(7755), "C")].oi is None
 
 
 def test_nse_row_maps_call_and_put():

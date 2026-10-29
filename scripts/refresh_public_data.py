@@ -7,7 +7,7 @@ from pathlib import Path
 from app.main import load_ladder
 
 OUT = Path(__file__).resolve().parent.parent / "docs" / "data"
-SYMBOLS = ("NIFTY", "SPX", "XSP")
+SYMBOLS = ("NIFTY", "SPX", "XSP", "ES1!")
 
 
 async def refresh() -> None:

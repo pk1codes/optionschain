@@ -11,13 +11,14 @@ from fastapi.staticfiles import StaticFiles
 
 from app.ladder import build_ladder
 from app.providers.cboe import fetch_index
+from app.providers.cme import fetch_es
 from app.providers.nse import fetch_nifty
 
 log = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
 _STATIC = Path(__file__).resolve().parent / "static"
-_TTL = {"NIFTY": 180, "SPX": 60, "XSP": 60}
+_TTL = {"NIFTY": 180, "SPX": 60, "XSP": 60, "ES1!": 60}
 _cache: dict[str, tuple[float, dict]] = {}
 _last_good: dict[str, dict] = {}
 _locks: dict[str, asyncio.Lock] = {}
@@ -39,6 +40,8 @@ app.mount("/static", StaticFiles(directory=_STATIC), name="static")
 async def _fetch(symbol: str):
     if symbol == "NIFTY":
         return await fetch_nifty()
+    if symbol == "ES1!":
+        return await fetch_es()
     return await fetch_index(symbol)
 
 
@@ -76,5 +79,5 @@ def index() -> FileResponse:
 async def ladder(symbol: str = "NIFTY") -> dict:
     key = symbol.upper()
     if key not in _TTL:
-        raise HTTPException(status_code=400, detail="symbol must be NIFTY, SPX, or XSP")
+        raise HTTPException(status_code=400, detail="symbol must be NIFTY, SPX, XSP, or ES1!")
     return await load_ladder(key)
